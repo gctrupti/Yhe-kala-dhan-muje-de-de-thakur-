@@ -1,10 +1,5 @@
-"""
-AML Mode Router
-
-Decides which AML pipeline to execute.
-"""
-
 from core.crypto_pipeline import run_crypto_pipeline
+from core.banking_pipeline import run_banking_pipeline
 
 
 def run_aml_pipeline(csv_path: str, mode: str):
@@ -13,7 +8,6 @@ def run_aml_pipeline(csv_path: str, mode: str):
         return run_crypto_pipeline(csv_path)
 
     if mode == "banking":
-        # Banking pipeline will be implemented in Phase 3
-        raise NotImplementedError("Banking AML pipeline not implemented yet")
+        return run_banking_pipeline(csv_path)
 
     raise ValueError(f"Unsupported AML mode: {mode}")
