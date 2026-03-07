@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 
 const BASE_URL = "http://127.0.0.1:8000/api";
@@ -6,6 +6,7 @@ const BASE_URL = "http://127.0.0.1:8000/api";
 export default function AMLGraph() {
 
   const svgRef = useRef(null);
+  const [walletTable, setWalletTable] = useState([]);
 
   useEffect(() => {
 
@@ -16,6 +17,8 @@ export default function AMLGraph() {
     ])
       .then(([graph, finalRisk, riskScores]) => {
 
+        setWalletTable(riskScores.wallets || []);
+
         renderGraph(graph, finalRisk, riskScores);
 
       })
@@ -25,7 +28,7 @@ export default function AMLGraph() {
 
   const renderGraph = (graph, finalRisk, riskScores) => {
 
-    const width = window.innerWidth;
+    const width = window.innerWidth - 420;
     const height = window.innerHeight;
 
     const riskMap = {};
@@ -54,8 +57,6 @@ export default function AMLGraph() {
         .on("zoom", e => container.attr("transform", e.transform))
     );
 
-    /* ARROW MARKER */
-
     const defs = svg.append("defs");
 
     defs.append("marker")
@@ -70,8 +71,6 @@ export default function AMLGraph() {
       .attr("d", "M0,-5L10,0L0,5")
       .attr("fill", "#64748b");
 
-    /* NODE DEGREE */
-
     const degree = {};
 
     graph.edges.forEach(e => {
@@ -85,69 +84,30 @@ export default function AMLGraph() {
       .domain(extent[0] === extent[1] ? [0, extent[1] || 1] : extent)
       .range([8, 26]);
 
-    /* FORCE SIMULATION */
-
     const sim = d3.forceSimulation(graph.nodes)
       .force("link", d3.forceLink(graph.edges).id(d => d.id).distance(140))
       .force("charge", d3.forceManyBody().strength(-420))
       .force("center", d3.forceCenter(width / 2, height / 2));
 
-    /* TOOLTIP */
-
     const tooltip = d3.select("body")
       .append("div")
       .style("position", "absolute")
-      .style("background", "linear-gradient(135deg, #e8f2ff, #dbeafe)")
-      .style("border", "1px solid #000")
-      .style("padding", "12px 16px")
-      .style("border-radius", "10px")
+      .style("background", "#ffffff")
+      .style("border", "1px solid #ddd")
+      .style("padding", "10px")
+      .style("border-radius", "8px")
       .style("font-size", "13px")
-      .style("color", "#000")
       .style("pointer-events", "none")
-      .style("opacity", 0)
-      .style("box-shadow", "0 6px 18px rgba(0,0,0,0.15)");
-
-    /* LINKS */
+      .style("opacity", 0);
 
     const link = container.append("g")
       .selectAll("line")
       .data(graph.edges)
       .enter()
       .append("line")
-      .attr("stroke", d => {
-
-        if (d.pattern === "smurfing") return "#ef4444";
-        if (d.pattern === "peeling") return "#a855f7";
-        if (d.is_suspicious) return "#f97316";
-
-        return "#64748b";
-
-      })
-      .attr("stroke-width", d => {
-
-        if (d.pattern === "smurfing") return 4;
-        if (d.pattern === "peeling") return 3;
-        if (d.is_suspicious) return 3;
-
-        return 1.2;
-
-      })
-      .attr("stroke-dasharray", d =>
-        d.pattern === "peeling" ? "6 6" : "4 6"
-      )
-      /* ALWAYS DRAW ARROW */
+      .attr("stroke", "#64748b")
+      .attr("stroke-width", 1.2)
       .attr("marker-end", "url(#arrow)");
-
-    /* DASH ANIMATION */
-
-    let dash = 0;
-
-    d3.timer(() => {
-      dash -= 0.8;
-      link.attr("stroke-dashoffset", dash);
-    });
-
-    /* NODES */
 
     const node = container.append("g")
       .selectAll("circle")
@@ -180,36 +140,12 @@ export default function AMLGraph() {
 
         tooltip
           .style("opacity", 1)
-          .style("left", e.pageX + 12 + "px")
-          .style("top", e.pageY + 12 + "px")
+          .style("left", e.pageX + 10 + "px")
+          .style("top", e.pageY + 10 + "px")
           .html(`
-
-            <div style="font-weight:600;font-size:14px;margin-bottom:8px;color:#2563eb;">
-              ${d.id}
-            </div>
-
-            <div style="margin-bottom:4px;">
-              <span>Final Risk:</span>
-              <span style="font-weight:600;">
-                ${(finalRiskValue * 100).toFixed(1)}%
-              </span>
-            </div>
-
-            <div style="margin-bottom:8px;">
-              <span>Base Risk:</span>
-              <span style="font-weight:600;">
-                ${(base * 100).toFixed(1)}%
-              </span>
-            </div>
-
-            ${
-              info?.reasons?.length
-                ? `<div style="border-top:1px solid #ccc;padding-top:8px;margin-top:8px;">
-                    ${info.reasons.map(r => `<div>• ${r}</div>`).join("")}
-                  </div>`
-                : ""
-            }
-
+            <div><strong>${d.id}</strong></div>
+            <div>Final Risk: ${(finalRiskValue * 100).toFixed(1)}%</div>
+            <div>Base Risk: ${(base * 100).toFixed(1)}%</div>
           `);
 
       })
@@ -242,8 +178,72 @@ export default function AMLGraph() {
 
   return (
 
-    <div className="fixed inset-0 w-full h-full bg-white overflow-hidden">
-      <svg ref={svgRef} className="relative w-full h-full" />
+    <div className="fixed inset-0 flex bg-white">
+
+      {/* GRAPH */}
+
+      <div className="flex-1">
+        <svg ref={svgRef} className="w-full h-full" />
+      </div>
+
+      {/* TABLE */}
+
+      <div className="w-[420px] border-l border-gray-200 bg-gray-50 overflow-y-auto p-4">
+
+        <h2 className="text-lg font-semibold mb-4">
+          AML Predictions
+        </h2>
+
+        <table className="w-full text-sm">
+
+          <thead className="border-b text-gray-600">
+            <tr>
+              <th className="py-2 text-left">Wallet</th>
+              <th className="py-2 text-left">Risk</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            {walletTable
+              .sort((a,b)=>b.base_risk-a.base_risk)
+              .slice(0,50)
+              .map((w,i)=>{
+
+                const risk = (w.base_risk*100).toFixed(1)
+
+                return (
+                  <tr key={i} className="border-b">
+
+                    <td className="py-2 font-mono text-xs">
+                      {w.id}
+                    </td>
+
+                    <td className="py-2 font-semibold">
+
+                      <span className={
+                        w.base_risk >= 0.85
+                        ? "text-red-600"
+                        : w.base_risk >= 0.6
+                        ? "text-orange-500"
+                        : "text-green-600"
+                      }>
+                        {risk}%
+                      </span>
+
+                    </td>
+
+                  </tr>
+                )
+
+              })}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
     </div>
 
   );
